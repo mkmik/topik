@@ -25,6 +25,8 @@ def random_odd_int():
     n = int (random.getrandbits (int_size-2))
     return n<<1|1
 
+import heapq
+
 class sketch:
     def __init__ (self, k, depth, width):
         # round up the width to a power of 2
@@ -87,48 +89,8 @@ class sketch:
             r[vals[i][1]] = i
         return r
 
-def make_sketch (epsilon, delta):
-    assert (epsilon > 0.0)
-    assert (delta < 1.0)
-    assert (delta > 0)
-    depth = int_ceil (log (1.0 / delta))
-    width = int_ceil (math.e / epsilon)
-    return sketch (depth, width)
-
-import heapq
-class space_saver:
-    def __init__ (self, n):
-        self.size = n
-        self.heap = []
-        self.map = {}
-
-    def update (self, key, val=1):
-        probe = self.map.get (key, None)
-        if probe is None:
-            if len (self.map) < self.size:
-                # still growing...
-                entry = [val, key, 0]
-                self.map[key] = entry
-                heapq.heappush (self.heap, entry)
-            else:
-                # ok, not monitored, so evict the smallest element
-                # also, lie about the value for entry.
-                [vs, ks, e] = heapq.heappop (self.heap)
-                entry = [val + vs, key, vs]
-                heapq.heappush (self.heap, entry)
-                del self.map[ks]
-                self.map[key] = entry
-        else:
-            probe[0] += val
-            heapq.heapify (self.heap)
-
-    def get(self, key):
-        return self.map.get(key)[0]
-
-
 if __name__ == '__main__':
     s = sketch (200, 20, 500)
-    ss = space_saver (200)
 
     def peek(n):
         re = []
@@ -146,7 +108,6 @@ if __name__ == '__main__':
         st = ''.join(ch for ch in i if ch not in exclude)
         for w in st.strip().split():
             s.update(w)
-            #ss.update(w)
 
         n += 1
         if n % 10000 == 0:
