@@ -69,52 +69,48 @@ func MakeSketch(k int, depth uint32, width uint32) Sketch {
 		MakeHashes(depth), depth, pqueue.New(0), make(map[string]Item), fnv.New64()}
 }
 
-func (self *Sketch) Hash(key string, hf uint64) uint64 {
+func (self *Sketch) DHash(key string, hf uint64) uint64 {
 	self.Hasher.Reset()
 	self.Hasher.Write([]byte(key))
-	self.Hasher.Write(SerializeUint32(uint32(hf)))
+	self.Hasher.Write(SerializeUint64(hf))
 	return self.Hasher.Sum64()
 }
 
-func (self *Sketch) SHash(key string) uint64 {
+func (self *Sketch) Hash(key string) uint64 {
 	self.Hasher.Reset()
 	self.Hasher.Write([]byte(key))
 	return self.Hasher.Sum64()
 }
 
-func (self *Sketch) Update(key string) {
-	//var ix = self.SHash(key)
+
+func (self *Sketch) estimateUpdate(key string, update bool) uint32 {
+	var ix = self.Hash(key)
 	var est uint32 = math.MaxUint32
 
 	for i := 0; uint32(i) < self.Depth; i++ {
 		var hf = self.HashFunctions[i]
-		//var j = MultiplyShift(self.LgWidth, hf, ix)
-		var j = MultiplyShift(self.LgWidth, hf, self.Hash(key, hf))
+		var j = MultiplyShift(self.LgWidth, hf, ix)
+		//var j = MultiplyShift(self.LgWidth, hf, self.Hash(key, hf))
 		var x = self.Count[i][j]
 		if x < est {
 			est = x
 		}
-		self.Count[i][j] = x + 1
-	}
-
-	self.UpdateHeap(key, est)
-}
-
-func (self *Sketch) Estimate(key string) uint32 {
-	//var ix = self.SHash(key)
-	var est uint32 = math.MaxUint32
-
-	for i := 0; uint32(i) < self.Depth; i++ {
-		var hf = self.HashFunctions[i]
-		//var j = MultiplyShift(self.LgWidth, hf, ix)
-		var j = MultiplyShift(self.LgWidth, hf, self.Hash(key, hf))
-		var x = self.Count[i][j]
-		if x < est {
-			est = x
+		if update {
+			self.Count[i][j] = x + 1
 		}
 	}
+
+	if update {
+		self.UpdateHeap(key, est)
+	}
+
 	return est
 }
+
+
+func (self *Sketch) Update(key string) { self.estimateUpdate(key, true) }
+
+func (self *Sketch) Estimate(key string) uint32 { return self.estimateUpdate(key, false) }
 
 type Item struct {
 	est uint32
@@ -153,8 +149,15 @@ func (self *Sketch) UpdateHeap(key string, est uint32) {
 	}
 }
 
-func SerializeUint32(n uint32) []byte {
-	return []byte{byte((n >> (0)) & 0xFF), byte((n >> (8)) & 0xFF), byte((n >> (16)) & 0xFF), byte((n >> (24)) & 0xFF)}
+func SerializeUint64(n uint64) []byte {
+	return []byte {byte((n >> 0) & 0xFF),
+		byte((n >> 8) & 0xFF),
+		byte((n >> 16) & 0xFF),
+		byte((n >> 24) & 0xFF),
+		byte((n >> 32) & 0xFF),
+		byte((n >> 40) & 0xFF),
+		byte((n >> 48) & 0xFF),
+		byte((n >> 56) & 0xFF)}
 }
 
 type Items []Item
@@ -198,7 +201,7 @@ func main() {
 	//http.ListenAndServe("localhost:4000",h)
 	//	fmt.Printf("tab %d\n", table[9][15])
 
-	var sk = MakeSketch(200, 40, 1500)
+	var sk = MakeSketch(200, 10, 1000)
 	//	fmt.Printf("tab %v\n", sk.HashFunctions)
 
 	fmt.Fprintf(os.Stderr, "----------------- tests\n")
@@ -220,11 +223,11 @@ func main() {
 		}
 		sk.Update(string(line))
 
-		if n%10000 == 0 {
-			DumpTop(sk, 10, n, false)
+		if n % 100000 == 0 {
+			DumpTop(sk, 5, n, false)
 		}
 		n = n + 1
 	}
 
-	DumpTop(sk, 200, 0, true)
+	DumpTop(sk, 5, 0, true)
 }
