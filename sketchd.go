@@ -19,7 +19,7 @@ func (h Hello) ServeHTTP(
 const IntSize = 32
 const IntMask = (1 << IntSize) - 1
 
-func MultiplyShift(m uint32, a uint32, x uint32) uint32 {
+func MultiplyShift(m uint, a uint32, x uint32) uint32 {
 	return ((a * x) & IntMask) >> (IntSize - m)
 }
 
@@ -45,7 +45,7 @@ func MakeHashes(depth uint32) []uint32 {
 
 type Sketch struct {
 	K             int
-	LgWidth       uint32
+	LgWidth       uint
 	Count         [][]uint32
 	HashFunctions []uint32
 	Depth         uint32
@@ -57,7 +57,7 @@ func MakeSketch(k int, depth uint32, width uint32) Sketch {
 	var m = uint(math.Ceil(math.Log2(float64(width))))
 	var roundedWidth = uint32(1 << m)
 
-	return Sketch{k, uint32(m), MakeTable(depth, roundedWidth),
+	return Sketch{k, m, MakeTable(depth, roundedWidth),
 		MakeHashes(depth), depth, pqueue.New(0), make(map[uint32]Item)}
 }
 
