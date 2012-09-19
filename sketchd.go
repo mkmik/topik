@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"hash"
+	"hash/fnv"
 	"math"
 	"math/rand"
 	"net/http"
@@ -50,7 +52,8 @@ type Sketch struct {
 	HashFunctions []uint32
 	Depth         uint32
 	Heap          *pqueue.Queue
-	Map           map[uint32]Item
+	Map           map[string]Item
+	Hasher        hash.Hash32
 }
 
 func MakeSketch(k int, depth uint32, width uint32) Sketch {
@@ -58,11 +61,17 @@ func MakeSketch(k int, depth uint32, width uint32) Sketch {
 	var roundedWidth = uint32(1 << m)
 
 	return Sketch{k, m, MakeTable(depth, roundedWidth),
-		MakeHashes(depth), depth, pqueue.New(0), make(map[uint32]Item)}
+		MakeHashes(depth), depth, pqueue.New(0), make(map[string]Item), fnv.New32()}
 }
 
-func (self *Sketch) Update(key uint32) {
-	var ix = key
+func (self *Sketch) Hash(key string) uint32 {
+	self.Hasher.Reset()
+	self.Hasher.Write([]byte(key))
+	return self.Hasher.Sum32()
+}
+
+func (self *Sketch) Update(key string) {
+	var ix = self.Hash(key)
 	var est uint32 = math.MaxUint32
 
 	for i := 0; uint32(i) < self.Depth; i++ {
@@ -78,8 +87,8 @@ func (self *Sketch) Update(key uint32) {
 	self.UpdateHeap(key, est)
 }
 
-func (self *Sketch) Estimate(key uint32) uint32 {
-	var ix = key
+func (self *Sketch) Estimate(key string) uint32 {
+	var ix = self.Hash(key)
 	var est uint32 = math.MaxUint32
 
 	for i := 0; uint32(i) < self.Depth; i++ {
@@ -95,14 +104,14 @@ func (self *Sketch) Estimate(key uint32) uint32 {
 
 type Item struct {
 	est uint32
-	val uint32
+	val string
 }
 
 func (t *Item) Less(other interface{}) bool {
 	return t.est < other.(*Item).est
 }
 
-func (self *Sketch) UpdateHeap(key uint32, est uint32) {
+func (self *Sketch) UpdateHeap(key string, est uint32) {
 	//	fmt.Printf("Updating heap %v %v\n", key, est)
 	if self.Heap.Len() == 0 || self.Heap.Peek().(*Item).est < est {
 		//		fmt.Printf("empty heap or adding bigger than min\n")
@@ -136,15 +145,15 @@ func main() {
 	var sk = MakeSketch(200, 20, 500)
 	//	fmt.Printf("tab %v\n", sk.HashFunctions)
 
-	sk.Update(10)
-	sk.Update(10)
-	sk.Update(10)
+	sk.Update("ciao")
+	sk.Update("ciao")
+	sk.Update("ciao")
 
-	sk.Update(12)
-	sk.Update(12)
+	sk.Update("ugo")
+	sk.Update("ugo")
 
-	fmt.Printf("Found 10 -> %v\n", sk.Estimate(10))
-	fmt.Printf("Found 12 -> %v\n", sk.Estimate(12))
+	fmt.Printf("Found 10 -> %v\n", sk.Estimate("ciao"))
+	fmt.Printf("Found 12 -> %v\n", sk.Estimate("ugo"))
 
 	fmt.Printf("----------------- tests\n")
 
