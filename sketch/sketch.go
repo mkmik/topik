@@ -1,12 +1,10 @@
 package sketch
 
 import (
-	"fmt"
 	"hash"
 	"hash/fnv"
 	"math"
 	"math/rand"
-	"os"
 	"sort"
 	"topk/pqueue"
 )
@@ -101,17 +99,17 @@ func (self *Sketch) Update(key string) { self.estimateUpdate(key, true) }
 func (self *Sketch) Estimate(key string) uint32 { return self.estimateUpdate(key, false) }
 
 type Item struct {
-	est uint32
-	val string
+	Est uint32
+	Key string
 }
 
 func (t *Item) Less(other interface{}) bool {
-	return t.est < other.(*Item).est
+	return t.Est < other.(*Item).Est
 }
 
 func (self *Sketch) UpdateHeap(key string, est uint32) {
 	//	fmt.Printf("Updating heap %v %v\n", key, est)
-	if self.Heap.Len() == 0 || self.Heap.Peek().(*Item).est < est {
+	if self.Heap.Len() == 0 || self.Heap.Peek().(*Item).Est < est {
 		//		fmt.Printf("empty heap or adding bigger than min\n")
 		probe, ok := self.Map[key]
 		if !ok {
@@ -126,12 +124,12 @@ func (self *Sketch) UpdateHeap(key string, est uint32) {
 				entry := Item{est, key}
 				self.Heap.Enqueue(&entry)
 				old := self.Heap.Dequeue()
-				delete(self.Map, old.(*Item).val)
+				delete(self.Map, old.(*Item).Key)
 				self.Map[key] = entry
 			}
 		} else {
 			//			fmt.Printf("found in map\n")
-			probe.est = est
+			probe.Est = est
 			self.Heap.Heapify()
 		}
 	}
@@ -151,21 +149,14 @@ func SerializeUint64(n uint64) []byte {
 type Items []Item
 
 func (s Items) Len() int           { return len(s) }
-func (s Items) Less(i, j int) bool { return s[i].est > s[j].est }
+func (s Items) Less(i, j int) bool { return s[i].Est > s[j].Est }
 func (s Items) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
-func DumpTop(sk Sketch, n, l int, o bool) {
+func (sk *Sketch) Top(n int) []Item {
 	items := make(Items, 0)
 	for k, _ := range sk.Map {
 		entry := Item{sk.Estimate(k), k}
 		items = append(items, entry)
-	}
-
-	fmt.Fprintf(os.Stderr, "-----------\n")
-	if n > 0 {
-		fmt.Fprintf(os.Stderr, "TOP %d (%d lines)\n", n, l)
-	} else {
-		fmt.Fprintf(os.Stderr, "TOP %d\n")
 	}
 
 	sort.Sort(items)
@@ -174,12 +165,5 @@ func DumpTop(sk Sketch, n, l int, o bool) {
 		b = len(items) - 1
 	}
 
-	f := os.Stderr
-	if o {
-		f = os.Stdout
-	}
-
-	for _, v := range items[0:b] {
-		fmt.Fprintf(f, "%d %s\n", v.est, v.val)
-	}
+	return items[0:b]
 }
