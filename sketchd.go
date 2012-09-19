@@ -8,6 +8,9 @@ import (
 	"math/rand"
 	"net/http"
 	"topk/pqueue"
+	"os"
+	"bufio"
+	"strings"
 )
 
 type Hello struct{}
@@ -124,7 +127,12 @@ func (self *Sketch) UpdateHeap(key string, est uint32) {
 				self.Heap.Enqueue(&entry)
 				self.Map[key] = entry
 			} else {
-				fmt.Printf("TODO Push this guy out\n")
+				//fmt.Printf("TODO Push this guy out\n")
+				entry := Item{est, key}
+				self.Heap.Enqueue(&entry)
+				old := self.Heap.Dequeue()
+				delete(self.Map, old.(*Item).val)
+				self.Map[key] = entry
 			}
 		} else {
 			//			fmt.Printf("found in map\n")
@@ -145,35 +153,31 @@ func main() {
 	var sk = MakeSketch(200, 20, 500)
 	//	fmt.Printf("tab %v\n", sk.HashFunctions)
 
-	sk.Update("ciao")
-	sk.Update("ciao")
-	sk.Update("ciao")
-
-	sk.Update("ugo")
-	sk.Update("ugo")
-
-	fmt.Printf("Found 10 -> %v\n", sk.Estimate("ciao"))
-	fmt.Printf("Found 12 -> %v\n", sk.Estimate("ugo"))
-
 	fmt.Printf("----------------- tests\n")
 
-	for k, _ := range sk.Map {
-		fmt.Printf("Map %v %v\n", k, sk.Estimate(k))
+	fmt.Printf("Reading\n")
+
+	//	file, err := os.Open("divina.txt") 
+	file, err := os.Open("itwiki-latest-abstract.txt") 
+	if err != nil {
+		fmt.Printf("cannot open\n")
 	}
 
-	/*
-		q := pqueue.New(0)
-		q.Enqueue(&Item{23, 2})
-		q.Enqueue(&Item{2, 10})
-		q.Enqueue(&Item{3, 5})
-		q.Enqueue(&Item{10, 7})
+	bf := bufio.NewReader(file)
 
-		fmt.Printf("Head %v\n", q.Len())
-		fmt.Printf("Head %v\n", q.Peek().(*Item).est)
-
-		for i := 0; i < 4; i += 1 {
-			item := q.Dequeue()
-			fmt.Printf("Dequeued %v\n", item)
+	for ;; {
+		line, _, err := bf.ReadLine()
+		if err != nil {
+			break
 		}
-	*/
+		words := strings.Fields(string(line))
+		for _, w := range words {
+			sk.Update(w)
+		}
+	}
+
+	for k, _ := range sk.Map {
+		fmt.Printf("%v %v\n", sk.Estimate(k), k)
+	}
+
 }
