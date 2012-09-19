@@ -1,16 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"hash"
 	"hash/fnv"
 	"math"
 	"math/rand"
 	"net/http"
-	"topk/pqueue"
 	"os"
-	"bufio"
-	"strings"
+	"sort"
+	"topk/pqueue"
 )
 
 type Hello struct{}
@@ -21,15 +21,15 @@ func (h Hello) ServeHTTP(
 	fmt.Fprint(w, "Hello!")
 }
 
-const IntSize = 32
+const IntSize = 64
 const IntMask = (1 << IntSize) - 1
 
-func MultiplyShift(m uint, a uint32, x uint32) uint32 {
+func MultiplyShift(m uint, a uint64, x uint64) uint64 {
 	return ((a * x) & IntMask) >> (IntSize - m)
 }
 
-func RandomOddInt() uint32 {
-	return uint32(rand.Int31())<<1 | 1
+func RandomOddInt() uint64 {
+	return uint64(rand.Int63())<<1 | 1
 }
 
 func MakeTable(dx, dy uint32) [][]uint32 {
@@ -40,11 +40,13 @@ func MakeTable(dx, dy uint32) [][]uint32 {
 	return table
 }
 
-func MakeHashes(depth uint32) []uint32 {
-	var hashes = make([]uint32, depth)
+func MakeHashes(depth uint32) []uint64 {
+
+	var hashes = make([]uint64, depth)
 	for i, _ := range hashes {
 		hashes[i] = RandomOddInt()
 	}
+
 	return hashes
 }
 
@@ -52,11 +54,11 @@ type Sketch struct {
 	K             int
 	LgWidth       uint
 	Count         [][]uint32
-	HashFunctions []uint32
+	HashFunctions []uint64
 	Depth         uint32
 	Heap          *pqueue.Queue
 	Map           map[string]Item
-	Hasher        hash.Hash32
+	Hasher        hash.Hash64
 }
 
 func MakeSketch(k int, depth uint32, width uint32) Sketch {
@@ -64,22 +66,30 @@ func MakeSketch(k int, depth uint32, width uint32) Sketch {
 	var roundedWidth = uint32(1 << m)
 
 	return Sketch{k, m, MakeTable(depth, roundedWidth),
-		MakeHashes(depth), depth, pqueue.New(0), make(map[string]Item), fnv.New32()}
+		MakeHashes(depth), depth, pqueue.New(0), make(map[string]Item), fnv.New64()}
 }
 
-func (self *Sketch) Hash(key string) uint32 {
+func (self *Sketch) Hash(key string, hf uint64) uint64 {
 	self.Hasher.Reset()
 	self.Hasher.Write([]byte(key))
-	return self.Hasher.Sum32()
+	self.Hasher.Write(SerializeUint32(uint32(hf)))
+	return self.Hasher.Sum64()
+}
+
+func (self *Sketch) SHash(key string) uint64 {
+	self.Hasher.Reset()
+	self.Hasher.Write([]byte(key))
+	return self.Hasher.Sum64()
 }
 
 func (self *Sketch) Update(key string) {
-	var ix = self.Hash(key)
+	//var ix = self.SHash(key)
 	var est uint32 = math.MaxUint32
 
 	for i := 0; uint32(i) < self.Depth; i++ {
 		var hf = self.HashFunctions[i]
-		var j = MultiplyShift(self.LgWidth, hf, ix)
+		//var j = MultiplyShift(self.LgWidth, hf, ix)
+		var j = MultiplyShift(self.LgWidth, hf, self.Hash(key, hf))
 		var x = self.Count[i][j]
 		if x < est {
 			est = x
@@ -91,12 +101,13 @@ func (self *Sketch) Update(key string) {
 }
 
 func (self *Sketch) Estimate(key string) uint32 {
-	var ix = self.Hash(key)
+	//var ix = self.SHash(key)
 	var est uint32 = math.MaxUint32
 
 	for i := 0; uint32(i) < self.Depth; i++ {
 		var hf = self.HashFunctions[i]
-		var j = MultiplyShift(self.LgWidth, hf, ix)
+		//var j = MultiplyShift(self.LgWidth, hf, ix)
+		var j = MultiplyShift(self.LgWidth, hf, self.Hash(key, hf))
 		var x = self.Count[i][j]
 		if x < est {
 			est = x
@@ -142,42 +153,78 @@ func (self *Sketch) UpdateHeap(key string, est uint32) {
 	}
 }
 
+func SerializeUint32(n uint32) []byte {
+	return []byte{byte((n >> (0)) & 0xFF), byte((n >> (8)) & 0xFF), byte((n >> (16)) & 0xFF), byte((n >> (24)) & 0xFF)}
+}
+
+type Items []Item
+
+func (s Items) Len() int           { return len(s) }
+func (s Items) Less(i, j int) bool { return s[i].est > s[j].est }
+func (s Items) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
+func DumpTop(sk Sketch, n, l int, o bool) {
+	items := make(Items, 0)
+	for k, _ := range sk.Map {
+		entry := Item{sk.Estimate(k), k}
+		items = append(items, entry)
+	}
+
+	fmt.Fprintf(os.Stderr, "-----------\n")
+	if n > 0 {
+		fmt.Fprintf(os.Stderr, "TOP %d (%d lines)\n", n, l)
+	} else {
+		fmt.Fprintf(os.Stderr, "TOP %d\n")
+	}
+
+	sort.Sort(items)
+	b := n
+	if b >= len(items) {
+		b = len(items) - 1
+	}
+
+	f := os.Stderr
+	if o {
+		f = os.Stdout
+	}
+
+	for _, v := range items[0:b] {
+		fmt.Fprintf(f, "%d %s\n", v.est, v.val)
+	}
+}
+
 func main() {
 	//var h Hello
 	//http.ListenAndServe("localhost:4000",h)
-	var table = MakeTable(10, 20)
-
-	table[9][15] = 1
 	//	fmt.Printf("tab %d\n", table[9][15])
 
-	var sk = MakeSketch(200, 20, 500)
+	var sk = MakeSketch(200, 40, 1500)
 	//	fmt.Printf("tab %v\n", sk.HashFunctions)
 
-	fmt.Printf("----------------- tests\n")
+	fmt.Fprintf(os.Stderr, "----------------- tests\n")
 
-	fmt.Printf("Reading\n")
-
-	//	file, err := os.Open("divina.txt") 
-	file, err := os.Open("itwiki-latest-abstract.txt") 
+	//file, err := os.Open("body.txt")
+	file, err := os.Open("short.txt")
 	if err != nil {
 		fmt.Printf("cannot open\n")
 	}
 
 	bf := bufio.NewReader(file)
 
-	for ;; {
+	n := 0
+
+	for {
 		line, _, err := bf.ReadLine()
 		if err != nil {
 			break
 		}
-		words := strings.Fields(string(line))
-		for _, w := range words {
-			sk.Update(w)
+		sk.Update(string(line))
+
+		if n%10000 == 0 {
+			DumpTop(sk, 10, n, false)
 		}
+		n = n + 1
 	}
 
-	for k, _ := range sk.Map {
-		fmt.Printf("%v %v\n", sk.Estimate(k), k)
-	}
-
+	DumpTop(sk, 200, 0, true)
 }

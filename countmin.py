@@ -10,6 +10,8 @@ import math
 import random
 import sys
 
+random.seed(0)
+
 int_size = len (bin (sys.maxint)) - 1
 int_mask = (1 << int_size) - 1
 
@@ -36,6 +38,7 @@ class sketch:
         self.lg_width = m
         self.count = [ [0] * rounded_width for x in range (depth) ]
         self.hash_functions = [ random_odd_int() for x in range (depth) ]
+        #print "HASH", self.hash_functions
         self.heap = []
         self.map = {}
 
@@ -92,29 +95,31 @@ class sketch:
 if __name__ == '__main__':
     s = sketch (200, 20, 500)
 
-    def peek(n):
+    def peek(n, l=0, err=False):
+        print >>sys.stderr, "------"
+        if l:
+            print >>sys.stderr, "TOP %s (%s lines)" % (n, l)
+        else:
+            print >>sys.stderr, "TOP %s" % (n,)
+
         re = []
         for i in s.heap:
             re.append((s.get(i[1]), i[1]))
 
-        for i in sorted(re, reverse=True)[0:10]:
-            print i[0], i[1]
+        f = sys.stdout
+        if err:
+            f = sys.stderr
+
+        for i in sorted(re, reverse=True)[0:n]:
+            print >>f, i[0], i[1]
         
 
-    import string
     n = 0
-    for i in open('itwiki-latest-abstract.txt'):
-        exclude = set(string.punctuation)
-        st = ''.join(ch for ch in i if ch not in exclude)
-        for w in st.strip().split():
-            s.update(w)
+    for i in open('short.txt'):
+        s.update(i.strip())
 
         n += 1
         if n % 10000 == 0:
-            print "------"
-            print "TOP 10"
-            peek(10)
+            peek(10, n, err=True)
 
-
-    print "TOP 10"
-    peek(10)
+    peek(200)
