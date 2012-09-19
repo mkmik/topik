@@ -108,19 +108,14 @@ func (t *Item) Less(other interface{}) bool {
 }
 
 func (self *Sketch) UpdateHeap(key string, est uint32) {
-	//	fmt.Printf("Updating heap %v %v\n", key, est)
 	if self.Heap.Len() == 0 || self.Heap.Peek().(*Item).Est < est {
-		//		fmt.Printf("empty heap or adding bigger than min\n")
 		probe, ok := self.Map[key]
 		if !ok {
-			//			fmt.Printf("not found in map\n")
 			if len(self.Map) < self.K {
-				//				fmt.Printf("Still growing\n")
 				entry := Item{est, key}
 				self.Heap.Enqueue(&entry)
 				self.Map[key] = entry
 			} else {
-				//fmt.Printf("TODO Push this guy out\n")
 				entry := Item{est, key}
 				self.Heap.Enqueue(&entry)
 				old := self.Heap.Dequeue()
@@ -128,7 +123,6 @@ func (self *Sketch) UpdateHeap(key string, est uint32) {
 				self.Map[key] = entry
 			}
 		} else {
-			//			fmt.Printf("found in map\n")
 			probe.Est = est
 			self.Heap.Heapify()
 		}

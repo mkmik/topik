@@ -2,9 +2,9 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"net/http"
-	"encoding/json"
 	"os"
 	"topk/sketch"
 )
@@ -61,7 +61,7 @@ func Preload(sk sketch.Sketch) {
 func main() {
 	var sk = sketch.MakeSketch(200, 10, 1000)
 
-//	Preload(sk)
+	//	Preload(sk)
 
 	http.HandleFunc("/top", func(w http.ResponseWriter, r *http.Request) {
 		js, _ := json.Marshal(sk.Top(5))
@@ -74,7 +74,6 @@ func main() {
 			sk.Update(t)
 		}
 	})
-
 
 	http.ListenAndServe("localhost:4000", nil)
 }
