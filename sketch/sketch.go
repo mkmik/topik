@@ -162,7 +162,7 @@ func (sk *Sketch) Top(n int) []Item {
 	sort.Sort(items)
 	b := n
 	if b >= len(items) {
-		b = len(items) - 1
+		b = len(items)
 	}
 
 	return items[0:b]

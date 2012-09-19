@@ -4,17 +4,12 @@ import (
 	"bufio"
 	"fmt"
 	"net/http"
+	"encoding/json"
 	"os"
 	"topk/sketch"
 )
 
 type Hello struct{}
-
-func (h Hello) ServeHTTP(
-	w http.ResponseWriter,
-	r *http.Request) {
-	fmt.Fprint(w, "Hello!")
-}
 
 func DumpTop(sk sketch.Sketch, n, l int, o bool) {
 	items := sk.Top(n)
@@ -36,16 +31,7 @@ func DumpTop(sk sketch.Sketch, n, l int, o bool) {
 	}
 }
 
-func main() {
-	//var h Hello
-	//http.ListenAndServe("localhost:4000",h)
-	//	fmt.Printf("tab %d\n", table[9][15])
-
-	var sk = sketch.MakeSketch(200, 10, 1000)
-	//	fmt.Printf("tab %v\n", sk.HashFunctions)
-
-	fmt.Fprintf(os.Stderr, "----------------- tests\n")
-
+func Preload(sk sketch.Sketch) {
 	//file, err := os.Open("body.txt")
 	file, err := os.Open("short.txt")
 	if err != nil {
@@ -70,4 +56,25 @@ func main() {
 	}
 
 	DumpTop(sk, 5, 0, true)
+}
+
+func main() {
+	var sk = sketch.MakeSketch(200, 10, 1000)
+
+//	Preload(sk)
+
+	http.HandleFunc("/top", func(w http.ResponseWriter, r *http.Request) {
+		js, _ := json.Marshal(sk.Top(5))
+		w.Write(js)
+	})
+
+	http.HandleFunc("/add", func(w http.ResponseWriter, r *http.Request) {
+		terms := r.URL.Query()["term"]
+		for _, t := range terms {
+			sk.Update(t)
+		}
+	})
+
+
+	http.ListenAndServe("localhost:4000", nil)
 }
