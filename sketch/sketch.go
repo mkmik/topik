@@ -51,7 +51,7 @@ type Sketch struct {
 	Depth         uint32
 	Heap          *pqueue.Queue
 	Map           map[string]Item
-	Hasher        hash.Hash64
+	hasher        hash.Hash64
 }
 
 func MakeSketch(k int, depth uint32, width uint32) *Sketch {
@@ -63,16 +63,16 @@ func MakeSketch(k int, depth uint32, width uint32) *Sketch {
 }
 
 func (self *Sketch) DHash(key string, hf uint64) uint64 {
-	self.Hasher.Reset()
-	self.Hasher.Write([]byte(key))
-	self.Hasher.Write(SerializeUint64(hf))
-	return self.Hasher.Sum64()
+	self.hasher.Reset()
+	self.hasher.Write([]byte(key))
+	self.hasher.Write(SerializeUint64(hf))
+	return self.hasher.Sum64()
 }
 
 func (self *Sketch) Hash(key string) uint64 {
-	self.Hasher.Reset()
-	self.Hasher.Write([]byte(key))
-	return self.Hasher.Sum64()
+	self.hasher.Reset()
+	self.hasher.Write([]byte(key))
+	return self.hasher.Sum64()
 }
 
 func (self *Sketch) estimateUpdate(key string, update bool) uint32 {
