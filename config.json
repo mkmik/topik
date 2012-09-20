@@ -1,0 +1,6 @@
+{
+  "hourly": {"type": "Multi", "length": 10, "period": 3600, "k": 200, "depth": 10, "width": 1000},
+  "weekly": {"type": "Multi", "length": 7, "period": 604800, "k": 200, "depth": 10, "width": 1000},
+  "monthly": {"type": "Multi", "length": 10, "period": 2678400, "k": 200, "depth": 10, "width": 1000},
+  "all": {"type": "Single", "k": 200, "depth": 10, "width": 1000}
+}

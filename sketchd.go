@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"topk/sketch"
@@ -58,16 +59,43 @@ func Preload(sk sketch.Interface) {
 	DumpTop(sk, 5, 0, true)
 }
 
+type jsonobject map[string]SketchDef
+
+type SketchDef struct {
+	Type   string
+	Length int
+	Period int
+	K      int
+	Depth  uint32
+	Width  uint32
+}
+
 func main() {
 	sketches := make(map[string]sketch.Interface)
-	sketches["hourly"] = sketch.MakeMultiSketch(10, 3600/10, 200, 10, 1000)
-	sketches["weekly"] = sketch.MakeMultiSketch(7, 86400, 200, 10, 1000)
-	sketches["monthly"] = sketch.MakeMultiSketch(10, 86400*24*30/10, 10, 10, 1000)
-	sketches["all"] = sketch.MakeSketch(200, 10, 1000)
 
-	for _, sk := range sketches {
-		Preload(sk)
+	file, e := ioutil.ReadFile("./config.json")
+	if e != nil {
+		fmt.Printf("File error: %v\n", e)
+		os.Exit(1)
 	}
+
+	var conf jsonobject
+	json.Unmarshal(file, &conf)
+
+	for k, c := range conf {
+		var sk sketch.Interface
+
+		if c.Type == "Multi" {
+			sk = sketch.MakeMultiSketch(c.Length, c.Period, c.K, c.Depth, c.Width)
+		} else {
+			sk = sketch.MakeSketch(c.K, c.Depth, c.Width)
+		}
+		sketches[k] = sk
+	}
+
+	//for _, sk := range sketches {
+	//	Preload(sk)
+	//}
 
 	update := make(chan string, 2000)
 	go func() {
