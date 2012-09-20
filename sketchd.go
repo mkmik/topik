@@ -11,7 +11,7 @@ import (
 
 type Hello struct{}
 
-func DumpTop(sk sketch.Sketch, n, l int, o bool) {
+func DumpTop(sk sketch.Interface, n, l int, o bool) {
 	items := sk.Top(n)
 
 	fmt.Fprintf(os.Stderr, "-----------\n")
@@ -31,7 +31,7 @@ func DumpTop(sk sketch.Sketch, n, l int, o bool) {
 	}
 }
 
-func Preload(sk sketch.Sketch) {
+func Preload(sk sketch.Interface) {
 	//file, err := os.Open("body.txt")
 	file, err := os.Open("short.txt")
 	if err != nil {
@@ -59,19 +59,36 @@ func Preload(sk sketch.Sketch) {
 }
 
 func main() {
-	var sk = sketch.MakeSketch(200, 10, 1000)
+	sketches := make(map[string]sketch.Interface)
+	sketches["hourly"] = sketch.MakeMultiSketch(10, 3600/10, 200, 10, 1000)
+	sketches["weekly"] = sketch.MakeMultiSketch(7, 86400, 200, 10, 1000)
+	sketches["monthly"] = sketch.MakeMultiSketch(10, 86400*24*30/10, 10, 10, 1000)
+	sketches["all"] = sketch.MakeSketch(200, 10, 1000)
 
-	//	Preload(sk)
+	for _, sk := range sketches {
+		Preload(sk)
+	}
 
-	http.HandleFunc("/top", func(w http.ResponseWriter, r *http.Request) {
-		js, _ := json.Marshal(sk.Top(5))
-		w.Write(js)
-	})
+	update := make(chan string, 2000)
+	go func() {
+		for t := range update {
+			for _, sk := range sketches {
+				sk.Update(t)
+			}
+		}
+	}()
+
+	for name, sk := range sketches {
+		http.HandleFunc("/top/"+name, func(w http.ResponseWriter, r *http.Request) {
+			js, _ := json.Marshal(sk.Top(5))
+			w.Write(js)
+		})
+	}
 
 	http.HandleFunc("/add", func(w http.ResponseWriter, r *http.Request) {
 		terms := r.URL.Query()["term"]
 		for _, t := range terms {
-			sk.Update(t)
+			update <- t
 		}
 	})
 

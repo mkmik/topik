@@ -38,6 +38,11 @@ func MakeHashes(depth uint32) []uint64 {
 	return hashes
 }
 
+type Interface interface {
+	Update(term string)
+	Top(n int) []Item
+}
+
 type Sketch struct {
 	K             int
 	LgWidth       uint
@@ -49,11 +54,11 @@ type Sketch struct {
 	Hasher        hash.Hash64
 }
 
-func MakeSketch(k int, depth uint32, width uint32) Sketch {
+func MakeSketch(k int, depth uint32, width uint32) *Sketch {
 	var m = uint(math.Ceil(math.Log2(float64(width))))
 	var roundedWidth = uint32(1 << m)
 
-	return Sketch{k, m, MakeTable(depth, roundedWidth),
+	return &Sketch{k, m, MakeTable(depth, roundedWidth),
 		MakeHashes(depth), depth, pqueue.New(0), make(map[string]Item), fnv.New64()}
 }
 
