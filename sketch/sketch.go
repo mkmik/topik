@@ -63,6 +63,9 @@ func MakeSketch(k int, depth uint32, width uint32) *Sketch {
 }
 
 func (self *Sketch) DHash(key string, hf uint64) uint64 {
+	if self.hasher == nil {
+		self.hasher = fnv.New64()
+	}
 	self.hasher.Reset()
 	self.hasher.Write([]byte(key))
 	self.hasher.Write(SerializeUint64(hf))
@@ -70,6 +73,10 @@ func (self *Sketch) DHash(key string, hf uint64) uint64 {
 }
 
 func (self *Sketch) Hash(key string) uint64 {
+	if self.hasher == nil {
+		self.hasher = fnv.New64()
+	}
+
 	self.hasher.Reset()
 	self.hasher.Write([]byte(key))
 	return self.hasher.Sum64()

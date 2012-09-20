@@ -2,11 +2,14 @@ package main
 
 import (
 	"bufio"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"time"
 	"topk/sketch"
 )
 
@@ -93,6 +96,10 @@ func main() {
 		sketches[k] = sk
 	}
 
+	gob.Register(sketch.MakeSketch(1, 1, 1))
+	gob.Register(sketch.MakeMultiSketch(1, 0, 1, 1, 1))
+	gob.Register(&sketch.Item{})
+
 	//for _, sk := range sketches {
 	//	Preload(sk)
 	//}
@@ -107,17 +114,19 @@ func main() {
 	}()
 
 	for name, sk := range sketches {
-		var csk = sk
+		var cname = name
 		http.HandleFunc("/top/"+name, func(w http.ResponseWriter, r *http.Request) {
-			js, _ := json.Marshal(csk.Top(5))
+			js, _ := json.Marshal(sketches[cname].Top(5))
 			w.Write(js)
 		})
 
 		switch ms := sk.(type) {
 		case *sketch.MultiSketch:
-			var cms = ms
+			var cname = name
 			http.HandleFunc("/top/"+name+"/rotate", func(w http.ResponseWriter, r *http.Request) {
-				cms.Rotate()
+				if ms != nil { // dummy just because I don't know how to ignore 'ms'
+					sketches[cname].(*sketch.MultiSketch).Rotate()
+				}
 			})
 		}
 	}
@@ -127,6 +136,56 @@ func main() {
 		for _, t := range terms {
 			update <- t
 		}
+	})
+
+	dump := func(w io.Writer) {
+		file, err := os.OpenFile("/tmp/dump", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+
+		if err != nil {
+			fmt.Fprintf(w, "Cannot write: %v", err)
+			return
+		}
+
+		enc := gob.NewEncoder(file)
+
+		err = enc.Encode(sketches)
+		if err != nil {
+			fmt.Fprintf(w, "Cannot serialize: %v", err)
+			return
+		}
+
+		file.Close()
+	}
+
+	http.HandleFunc("/dump", func(w http.ResponseWriter, r *http.Request) {
+		dump(w)
+		fmt.Fprintf(w, "ok\n")
+	})
+
+	go func() {
+		for {
+			time.Sleep(10 * time.Second)
+			dump(os.Stderr)
+		}
+	}()
+
+	http.HandleFunc("/load", func(w http.ResponseWriter, r *http.Request) {
+		file, err := os.Open("/tmp/dump")
+
+		if err != nil {
+			fmt.Fprintf(w, "Cannot open: %v", err)
+			return
+		}
+
+		enc := gob.NewDecoder(file)
+
+		err = enc.Decode(&sketches)
+		if err != nil {
+			fmt.Fprintf(w, "Cannot deserialize: %v", err)
+			return
+		}
+
+		fmt.Fprintf(w, "ok\n")
 	})
 
 	http.ListenAndServe("localhost:4000", nil)
