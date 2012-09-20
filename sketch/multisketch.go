@@ -1,8 +1,11 @@
 package sketch
 
 import (
-	"fmt"
+	"log/syslog"
+	"time"
 )
+
+var log, _ = syslog.NewLogger(syslog.LOG_INFO, 0)
 
 type MultiSketch struct {
 	Len      int
@@ -13,12 +16,22 @@ type MultiSketch struct {
 	Width    uint32
 }
 
-func MakeMultiSketch(l int, period int, k int, depth uint32, width uint32) *MultiSketch {
+func MakeMultiSketch(l int, period int, k int, depth uint32, width uint32) (ms *MultiSketch) {
 	sketches := make([]*Sketch, l)
 	for i := range sketches {
 		sketches[i] = MakeSketch(k, depth, width)
 	}
-	return &MultiSketch{l, period, sketches, k, depth, width}
+	ms = &MultiSketch{l, period, sketches, k, depth, width}
+
+	go func() {
+		for ;; {
+			time.Sleep(time.Duration(period / l) * time.Second)
+			log.Printf("Rotating topk after %d seconds\n", period / l)
+			ms.Rotate()
+		}
+	}()
+
+	return
 }
 
 func (ms *MultiSketch) Update(term string) {
