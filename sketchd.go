@@ -157,19 +157,7 @@ func main() {
 		file.Close()
 	}
 
-	http.HandleFunc("/dump", func(w http.ResponseWriter, r *http.Request) {
-		dump(w)
-		fmt.Fprintf(w, "ok\n")
-	})
-
-	go func() {
-		for {
-			time.Sleep(10 * time.Second)
-			dump(os.Stderr)
-		}
-	}()
-
-	http.HandleFunc("/load", func(w http.ResponseWriter, r *http.Request) {
+	load := func(w io.Writer) {
 		file, err := os.Open("/tmp/dump")
 
 		if err != nil {
@@ -184,9 +172,28 @@ func main() {
 			fmt.Fprintf(w, "Cannot deserialize: %v", err)
 			return
 		}
+	}
 
+	http.HandleFunc("/dump", func(w http.ResponseWriter, r *http.Request) {
+		dump(w)
 		fmt.Fprintf(w, "ok\n")
 	})
+
+	http.HandleFunc("/load", func(w http.ResponseWriter, r *http.Request) {
+		load(w)
+		fmt.Fprintf(w, "ok\n")
+	})
+
+	load(os.Stderr)
+
+	if false {
+		go func() {
+			for {
+				time.Sleep(10 * time.Second)
+				dump(os.Stderr)
+			}
+		}()
+	}
 
 	http.ListenAndServe("localhost:4000", nil)
 }
