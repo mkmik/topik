@@ -107,15 +107,17 @@ func main() {
 	}()
 
 	for name, sk := range sketches {
+		var csk = sk
 		http.HandleFunc("/top/"+name, func(w http.ResponseWriter, r *http.Request) {
-			js, _ := json.Marshal(sk.Top(5))
+			js, _ := json.Marshal(csk.Top(5))
 			w.Write(js)
 		})
 
 		switch ms := sk.(type) {
 		case *sketch.MultiSketch:
+			var cms = ms
 			http.HandleFunc("/top/"+name+"/rotate", func(w http.ResponseWriter, r *http.Request) {
-				ms.Rotate()
+				cms.Rotate()
 			})
 		}
 	}
