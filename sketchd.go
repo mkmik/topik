@@ -111,6 +111,13 @@ func main() {
 			js, _ := json.Marshal(sk.Top(5))
 			w.Write(js)
 		})
+
+		switch ms := sk.(type) {
+		case *sketch.MultiSketch:
+			http.HandleFunc("/top/"+name+"/rotate", func(w http.ResponseWriter, r *http.Request) {
+				ms.Rotate()
+			})
+		}
 	}
 
 	http.HandleFunc("/add", func(w http.ResponseWriter, r *http.Request) {
