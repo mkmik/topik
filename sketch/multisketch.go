@@ -23,13 +23,15 @@ func MakeMultiSketch(l int, period int, k int, depth uint32, width uint32) (ms *
 	}
 	ms = &MultiSketch{l, period, sketches, k, depth, width}
 
-	go func() {
-		for ;; {
-			time.Sleep(time.Duration(period / l) * time.Second)
-			log.Printf("Rotating topk after %d seconds\n", period / l)
-			ms.Rotate()
-		}
-	}()
+	if period > 0 {
+		go func() {
+			for {
+				time.Sleep(time.Duration(period/l) * time.Second)
+				log.Printf("Rotating topk after %d seconds\n", period/l)
+				ms.Rotate()
+			}
+		}()
+	}
 
 	return
 }
