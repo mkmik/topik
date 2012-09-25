@@ -62,7 +62,11 @@ func Preload(sk sketch.Interface) {
 	DumpTop(sk, 5, 0, true)
 }
 
-type jsonobject map[string]SketchDef
+type Configuration struct {
+	File     string
+	Preload  bool
+	Sketches map[string]SketchDef
+}
 
 type SketchDef struct {
 	Type   string
@@ -82,10 +86,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	var conf jsonobject
+	var conf Configuration
 	json.Unmarshal(file, &conf)
 
-	for k, c := range conf {
+	for k, c := range conf.Sketches {
 		var sk sketch.Interface
 
 		if c.Type == "Multi" {
@@ -100,9 +104,12 @@ func main() {
 	gob.Register(sketch.MakeMultiSketch(1, 0, 1, 1, 1))
 	gob.Register(&sketch.Item{})
 
-	//for _, sk := range sketches {
-	//	Preload(sk)
-	//}
+	if conf.Preload {
+		fmt.Printf("Preloading\n")
+		for _, sk := range sketches {
+			Preload(sk)
+		}
+	}
 
 	update := make(chan string, 2000)
 	go func() {
@@ -139,10 +146,10 @@ func main() {
 	})
 
 	dump := func(w io.Writer) {
-		file, err := os.OpenFile("/tmp/dump", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+		file, err := os.OpenFile(conf.File, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 
 		if err != nil {
-			fmt.Fprintf(w, "Cannot write: %v", err)
+			fmt.Fprintf(w, "Cannot write: %v\n", err)
 			return
 		}
 
@@ -150,7 +157,7 @@ func main() {
 
 		err = enc.Encode(sketches)
 		if err != nil {
-			fmt.Fprintf(w, "Cannot serialize: %v", err)
+			fmt.Fprintf(w, "Cannot serialize: %v\n", err)
 			return
 		}
 
@@ -158,10 +165,14 @@ func main() {
 	}
 
 	load := func(w io.Writer) {
-		file, err := os.Open("/tmp/dump")
+
+		file, err := os.Open(conf.File)
 
 		if err != nil {
-			fmt.Fprintf(w, "Cannot open: %v", err)
+			if os.IsNotExist(err) {
+				return
+			}
+			fmt.Fprintf(w, "Cannot open: %v\n", err)
 			return
 		}
 
@@ -169,7 +180,7 @@ func main() {
 
 		err = enc.Decode(&sketches)
 		if err != nil {
-			fmt.Fprintf(w, "Cannot deserialize: %v", err)
+			fmt.Fprintf(w, "Cannot deserialize: %v\n", err)
 			return
 		}
 	}
