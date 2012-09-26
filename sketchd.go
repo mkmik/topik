@@ -227,7 +227,6 @@ func main() {
 		go func() {
 			for {
 				time.Sleep(conf.Autosave * time.Second)
-				fmt.Fprintf(os.Stderr, "autosaving\n")
 				dump(os.Stderr)
 			}
 		}()
