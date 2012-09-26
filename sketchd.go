@@ -129,6 +129,7 @@ func main() {
 
 	gob.Register(sketch.MakeSketch(1, 1, 1))
 	gob.Register(sketch.MakeMultiSketch(1, 0, 1, 1, 1))
+	gob.Register(sketch.MakeGroupSketch("", "", nil))
 	gob.Register(&sketch.Item{})
 
 	if conf.Preload {
