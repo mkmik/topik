@@ -65,6 +65,7 @@ func Preload(sk sketch.Interface) {
 type Configuration struct {
 	File     string
 	Preload  bool
+	Autosave time.Duration
 	Sketches map[string]SketchDef
 }
 
@@ -197,10 +198,11 @@ func main() {
 
 	load(os.Stderr)
 
-	if false {
+	if conf.Autosave > 0 {
 		go func() {
 			for {
-				time.Sleep(10 * time.Second)
+				time.Sleep(conf.Autosave * time.Second)
+				fmt.Fprintf(os.Stderr, "autosaving\n")
 				dump(os.Stderr)
 			}
 		}()

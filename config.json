@@ -1,6 +1,7 @@
 {
   "file": "/tmp/dump",
-  "preload": true,
+  "preload": false,
+  "autosave": 1,
   "sketches":
   {
   "minute": {"type": "Multi", "length": 6, "period": 60, "k": 200, "depth": 10, "width": 1000},
