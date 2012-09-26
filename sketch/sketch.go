@@ -41,6 +41,8 @@ func MakeHashes(depth uint32) []uint64 {
 type Interface interface {
 	Update(term string)
 	Top(n int) []Item
+	StartAutoRotation()
+	StopAutoRotation()
 }
 
 type Sketch struct {
@@ -172,4 +174,26 @@ func (sk *Sketch) Top(n int) []Item {
 	}
 
 	return items[0:b]
+}
+
+func (s *Sketch) StartAutoRotation() {
+}
+
+func (s *Sketch) StopAutoRotation() {
+}
+
+type SketchWithChildren struct {
+	Sketches map[string]Interface
+}
+
+func (s *SketchWithChildren) StartAutoRotation() {
+	for _, sk := range s.Sketches {
+		sk.StartAutoRotation()
+	}
+}
+
+func (s *SketchWithChildren) StopAutoRotation() {
+	for _, sk := range s.Sketches {
+		sk.StopAutoRotation()
+	}
 }

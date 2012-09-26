@@ -72,35 +72,50 @@ type Configuration struct {
 }
 
 type SketchDef struct {
-	Type   string
-	Length int
-	Period int
-	K      int
-	Depth  uint32
-	Width  uint32
+	Type     string
+	Length   int
+	Period   int
+	K        int
+	Depth    uint32
+	Width    uint32
+	Default  string
+	Parent   string
+	Sketches map[string]SketchDef
 }
 
 func StartAutoRotation(sketches map[string]sketch.Interface) {
 	for _, sk := range sketches {
-		switch ms := sk.(type) {
-		case *sketch.MultiSketch:
-			ms.StartAutoRotation()
-		}
+		sk.StartAutoRotation()
 	}
 }
 
 func StopAutoRotation(sketches map[string]sketch.Interface) {
 	for _, sk := range sketches {
-		switch ms := sk.(type) {
-		case *sketch.MultiSketch:
-			ms.StopAutoRotation()
-		}
+		sk.StopAutoRotation()
 	}
 }
 
-func main() {
-	sketches := make(map[string]sketch.Interface)
+func ParseSketches(defs map[string]SketchDef) (sketches map[string]sketch.Interface) {
+	sketches = make(map[string]sketch.Interface)
 
+	for k, c := range defs {
+		var sk sketch.Interface
+
+		switch c.Type {
+		case "Multi":
+			sk = sketch.MakeMultiSketch(c.Length, c.Period, c.K, c.Depth, c.Width)
+		case "Group":
+			sk = sketch.MakeGroupSketch(c.Default, c.Parent, ParseSketches(c.Sketches))
+		default:
+			sk = sketch.MakeSketch(c.K, c.Depth, c.Width)
+		}
+		sketches[k] = sk
+	}
+
+	return
+}
+
+func main() {
 	file, e := ioutil.ReadFile("./config.json")
 	if e != nil {
 		fmt.Printf("File error: %v\n", e)
@@ -110,16 +125,7 @@ func main() {
 	var conf Configuration
 	json.Unmarshal(file, &conf)
 
-	for k, c := range conf.Sketches {
-		var sk sketch.Interface
-
-		if c.Type == "Multi" {
-			sk = sketch.MakeMultiSketch(c.Length, c.Period, c.K, c.Depth, c.Width)
-		} else {
-			sk = sketch.MakeSketch(c.K, c.Depth, c.Width)
-		}
-		sketches[k] = sk
-	}
+	sketches := ParseSketches(conf.Sketches)
 
 	gob.Register(sketch.MakeSketch(1, 1, 1))
 	gob.Register(sketch.MakeMultiSketch(1, 0, 1, 1, 1))
