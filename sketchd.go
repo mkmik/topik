@@ -212,7 +212,9 @@ func main() {
 		fmt.Fprintf(w, "ok\n")
 	})
 
-	load(os.Stderr)
+	if !conf.Preload {
+		load(os.Stderr)
+	}
 
 	if conf.Autosave > 0 {
 		go func() {
