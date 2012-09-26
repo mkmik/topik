@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"compress/gzip"
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
@@ -147,10 +148,16 @@ func main() {
 	})
 
 	dump := func(w io.Writer) {
-		file, err := os.OpenFile(conf.File, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+		wfile, err := os.OpenFile(conf.File, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 
 		if err != nil {
 			fmt.Fprintf(w, "Cannot write: %v\n", err)
+			return
+		}
+
+		file, err := gzip.NewWriterLevel(wfile, gzip.BestCompression)
+		if err != nil {
+			fmt.Fprintf(w, "Cannot open compressed stream: %v\n", err)
 			return
 		}
 
@@ -163,17 +170,23 @@ func main() {
 		}
 
 		file.Close()
+		wfile.Close()
 	}
 
 	load := func(w io.Writer) {
-
-		file, err := os.Open(conf.File)
+		rfile, err := os.Open(conf.File)
 
 		if err != nil {
 			if os.IsNotExist(err) {
 				return
 			}
 			fmt.Fprintf(w, "Cannot open: %v\n", err)
+			return
+		}
+
+		file, err := gzip.NewReader(rfile)
+		if err != nil {
+			fmt.Fprintf(w, "Cannot open compressed stream: %v\n", err)
 			return
 		}
 
@@ -184,6 +197,9 @@ func main() {
 			fmt.Fprintf(w, "Cannot deserialize: %v\n", err)
 			return
 		}
+
+		file.Close()
+		rfile.Close()
 	}
 
 	http.HandleFunc("/dump", func(w http.ResponseWriter, r *http.Request) {
