@@ -154,12 +154,14 @@ func main() {
 			fmt.Fprintf(w, "Cannot write: %v\n", err)
 			return
 		}
+		defer wfile.Close()
 
 		file, err := gzip.NewWriterLevel(wfile, gzip.BestCompression)
 		if err != nil {
 			fmt.Fprintf(w, "Cannot open compressed stream: %v\n", err)
 			return
 		}
+		defer file.Close()
 
 		enc := gob.NewEncoder(file)
 
@@ -168,9 +170,6 @@ func main() {
 			fmt.Fprintf(w, "Cannot serialize: %v\n", err)
 			return
 		}
-
-		file.Close()
-		wfile.Close()
 	}
 
 	load := func(w io.Writer) {
@@ -184,11 +183,14 @@ func main() {
 			return
 		}
 
+		defer rfile.Close()
+
 		file, err := gzip.NewReader(rfile)
 		if err != nil {
 			fmt.Fprintf(w, "Cannot open compressed stream: %v\n", err)
 			return
 		}
+		defer rfile.Close()
 
 		enc := gob.NewDecoder(file)
 
@@ -198,8 +200,6 @@ func main() {
 			return
 		}
 
-		file.Close()
-		rfile.Close()
 	}
 
 	http.HandleFunc("/dump", func(w http.ResponseWriter, r *http.Request) {
