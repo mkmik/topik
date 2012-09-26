@@ -80,6 +80,24 @@ type SketchDef struct {
 	Width  uint32
 }
 
+func StartAutoRotation(sketches map[string]sketch.Interface) {
+	for _, sk := range sketches {
+		switch ms := sk.(type) {
+		case *sketch.MultiSketch:
+			ms.StartAutoRotation()
+		}
+	}
+}
+
+func StopAutoRotation(sketches map[string]sketch.Interface) {
+	for _, sk := range sketches {
+		switch ms := sk.(type) {
+		case *sketch.MultiSketch:
+			ms.StopAutoRotation()
+		}
+	}
+}
+
 func main() {
 	sketches := make(map[string]sketch.Interface)
 
@@ -178,6 +196,9 @@ func main() {
 	}
 
 	load := func(w io.Writer) {
+		StopAutoRotation(sketches)
+		defer StartAutoRotation(sketches)
+
 		rfile, err := os.Open(conf.File)
 
 		if err != nil {
@@ -220,6 +241,8 @@ func main() {
 	if !conf.Preload {
 		load(os.Stderr)
 	}
+
+	StartAutoRotation(sketches)
 
 	if conf.Autosave > 0 {
 		go func() {

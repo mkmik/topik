@@ -14,26 +14,15 @@ type MultiSketch struct {
 	K        int
 	Depth    uint32
 	Width    uint32
+	rotor    chan chan int
 }
 
-func MakeMultiSketch(l int, period int, k int, depth uint32, width uint32) (ms *MultiSketch) {
+func MakeMultiSketch(l int, period int, k int, depth uint32, width uint32) *MultiSketch {
 	sketches := make([]*Sketch, l)
 	for i := range sketches {
 		sketches[i] = MakeSketch(k, depth, width)
 	}
-	ms = &MultiSketch{l, period, sketches, k, depth, width}
-
-	if period > 0 {
-		go func() {
-			for {
-				time.Sleep(time.Duration(period/l) * time.Second)
-				log.Printf("Rotating topk after %d seconds\n", period/l)
-				ms.Rotate()
-			}
-		}()
-	}
-
-	return
+	return &MultiSketch{l, period, sketches, k, depth, width, nil}
 }
 
 func (ms *MultiSketch) Update(term string) {
@@ -49,4 +38,35 @@ func (ms *MultiSketch) Top(n int) []Item {
 func (ms *MultiSketch) Rotate() {
 	ms.Sketches = ms.Sketches[1:]
 	ms.Sketches = append(ms.Sketches, MakeSketch(ms.K, ms.Depth, ms.Width))
+}
+
+func (ms *MultiSketch) StartAutoRotation() {
+	if ms.Period == 0 {
+		ms.rotor = nil
+		return
+	}
+
+	go func() {
+		if ms.rotor == nil {
+			ms.rotor = make(chan chan int)
+		}
+
+		select {
+		case <-time.After(time.Duration(ms.Period/ms.Len) * time.Second):
+			log.Printf("Rotating topk after %d seconds", ms.Period/ms.Len)
+			ms.Rotate()
+		case ans := <-ms.rotor:
+			log.Printf("Aborting topk rotation")
+			ans <- 0
+			return
+		}
+	}()
+}
+
+func (ms *MultiSketch) StopAutoRotation() {
+	if ms.rotor != nil {
+		res := make(chan int)
+		ms.rotor <- res
+		<-res
+	}
 }
