@@ -130,13 +130,11 @@ func main() {
 			w.Write(js)
 		})
 
-		switch ms := sk.(type) {
+		switch sk.(type) {
 		case *sketch.MultiSketch:
 			var cname = name
 			http.HandleFunc("/top/"+name+"/rotate", func(w http.ResponseWriter, r *http.Request) {
-				if ms != nil { // dummy just because I don't know how to ignore 'ms'
-					sketches[cname].(*sketch.MultiSketch).Rotate()
-				}
+				sketches[cname].(*sketch.MultiSketch).Rotate()
 			})
 		}
 	}
