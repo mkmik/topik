@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 	"topk/sketch"
 )
@@ -148,13 +149,17 @@ func main() {
 	})
 
 	dump := func(w io.Writer) {
-		wfile, err := os.OpenFile(conf.File, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+		dumpDir := filepath.Dir(conf.File)
+		wfile, err := ioutil.TempFile(dumpDir, "topk-")
 
 		if err != nil {
 			fmt.Fprintf(w, "Cannot write: %v\n", err)
 			return
 		}
 		defer wfile.Close()
+		defer func() {
+			os.Remove(wfile.Name())
+		}()
 
 		file, err := gzip.NewWriterLevel(wfile, gzip.BestCompression)
 		if err != nil {
@@ -170,6 +175,8 @@ func main() {
 			fmt.Fprintf(w, "Cannot serialize: %v\n", err)
 			return
 		}
+
+		os.Rename(wfile.Name(), conf.File)
 	}
 
 	load := func(w io.Writer) {
