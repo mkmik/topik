@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/gob"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -14,6 +15,8 @@ import (
 	"time"
 	"topk/sketch"
 )
+
+var encodingError = errors.New("Encoding error")
 
 type Hello struct{}
 
@@ -180,7 +183,18 @@ func main() {
 		}
 	})
 
-	dump := func(w io.Writer) {
+	gobSerialize := func(file io.Writer) error {
+		enc := gob.NewEncoder(file)
+		return enc.Encode(sketches)
+	}
+
+	jsonSerialize := func(file io.Writer) error {
+		return nil
+	}
+
+	save := func(w io.Writer, serialize func (io.Writer) error) {
+		fmt.Fprintf(w, "saving\n")
+
 		dumpDir := filepath.Dir(conf.File)
 		wfile, err := ioutil.TempFile(dumpDir, "topk-")
 
@@ -193,22 +207,28 @@ func main() {
 			os.Remove(wfile.Name())
 		}()
 
-		file, err := gzip.NewWriterLevel(wfile, gzip.BestCompression)
-		if err != nil {
-			fmt.Fprintf(w, "Cannot open compressed stream: %v\n", err)
-			return
-		}
-		defer file.Close()
+    file, err := gzip.NewWriterLevel(wfile, gzip.BestCompression)
+    if err != nil {
+      fmt.Fprintf(w, "Cannot open compressed stream: %v\n", err)
+      return
+    }
+    defer file.Close()
 
-		enc := gob.NewEncoder(file)
-
-		err = enc.Encode(sketches)
+		err = serialize(file)
 		if err != nil {
 			fmt.Fprintf(w, "Cannot serialize: %v\n", err)
 			return
 		}
 
 		os.Rename(wfile.Name(), conf.File)
+	}
+
+	dump := func(w io.Writer) {
+		if false {
+			save(w, gobSerialize)
+		} else {
+			save(w, jsonSerialize)
+		}
 	}
 
 	load := func(w io.Writer) {
@@ -250,7 +270,9 @@ func main() {
 	})
 
 	if !conf.Preload {
-		load(os.Stderr)
+		if false {
+			load(os.Stderr)
+		}
 	}
 
 	StartAutoRotation(sketches)

@@ -1,7 +1,7 @@
 {
   "file": "/tmp/dump",
   "preload": false,
-  "autosave": 20,
+  "autosave": 4,
   "sketches": {
     "any": {"type": "Group", "default": "all", "sketches": {
       "minute": {"type": "Multi", "length": 6, "period": 60, "k": 200, "depth": 10, "width": 1000},
