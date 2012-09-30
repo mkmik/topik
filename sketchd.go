@@ -121,22 +121,19 @@ func ParseSketches(defs map[string]SketchDef) (sketches *sketch.GroupSketch) {
 }
 
 type FileFormat interface {
-	Encode(sketches *sketch.GroupSketch, file io.Writer) error
-	Decode(sketches *sketch.GroupSketch, file io.Reader) error
+	Encode(conf Configuration, sketches *sketch.GroupSketch, file io.Writer) error
+	Decode(conf Configuration, sketches *sketch.GroupSketch, file io.Reader) error
 }
 
 type GobFormat struct {
 }
 
-func (g GobFormat) Encode(sketches *sketch.GroupSketch, file io.Writer) error {
-	fmt.Printf("GOB ENCODING\n")
+func (g GobFormat) Encode(conf Configuration, sketches *sketch.GroupSketch, file io.Writer) error {
 	enc := gob.NewEncoder(file)
 	return enc.Encode(sketches.Sketches)
 }
 
-func (g GobFormat) Decode(sketches *sketch.GroupSketch, file io.Reader) error {
-	fmt.Printf("GOB READING\n")
-
+func (g GobFormat) Decode(conf Configuration, sketches *sketch.GroupSketch, file io.Reader) error {
 	var sk map[string]sketch.Interface
 	dec := gob.NewDecoder(file)
 	err := dec.Decode(&sk)
@@ -150,23 +147,42 @@ func (g GobFormat) Decode(sketches *sketch.GroupSketch, file io.Reader) error {
 type JsonFormat struct {
 }
 
-func (g JsonFormat) Encode(sketches *sketch.GroupSketch, file io.Writer) error {
-	fmt.Printf("JSON ENCODING\n")
-	for name, sk := range sketches.Sketches {
-		switch gs := sk.(type) {
-		case *sketch.Sketch:
-			fmt.Printf("Encoding sketch %v %v\n", name, gs)
-		case *sketch.MultiSketch:
-			fmt.Printf("Encoding multisketch %v %v\n", name, gs)
-		case *sketch.GroupSketch:
-			fmt.Printf("Encoding group sketch %v %v\n", name, gs)
+func SketchToJson(sk sketch.Interface) interface{} {
+	switch gs := sk.(type) {
+	case *sketch.Sketch:
+		res := make(map[string]interface{})
+		res["heap"] = gs.Heap
+		res["count"] = gs.Count
+		res["hashes"] = gs.HashFunctions
+		return res
+	case *sketch.MultiSketch:
+		children := make([]interface{}, 0)
+		for _, child := range gs.Sketches {
+			children = append(children, SketchToJson(child))
 		}
+		return children
+	case *sketch.GroupSketch:
+		children := make(map[string]interface{})
+		for name, child := range gs.Sketches {
+			children[name] = SketchToJson(child)
+		}
+		return children
 	}
 
 	return nil
 }
 
-func (g JsonFormat) Decode(sketches *sketch.GroupSketch, file io.Reader) error {
+func (g JsonFormat) Encode(conf Configuration, sketches *sketch.GroupSketch, file io.Writer) error {
+	fmt.Printf("JSON ENCODING\n")
+	root := make(map[string]interface{})
+	root["conf"] = conf
+	root["data"] = SketchToJson(sketches)
+	js, err := json.Marshal(root)
+	file.Write(js)
+	return err
+}
+
+func (g JsonFormat) Decode(conf Configuration, sketches *sketch.GroupSketch, file io.Reader) error {
 	fmt.Printf("JSON READING\n")
 	return nil
 }
@@ -264,7 +280,7 @@ func main() {
 		}
 		defer file.Close()
 
-		err = format.Encode(sketches, file)
+		err = format.Encode(conf, sketches, file)
 		if err != nil {
 			fmt.Fprintf(w, "Cannot serialize: %v\n", err)
 			return
@@ -300,7 +316,7 @@ func main() {
 		}
 		defer rfile.Close()
 
-		err = format.Decode(sketches, file)
+		err = format.Decode(conf, sketches, file)
 
 		if err != nil {
 			fmt.Fprintf(w, "Cannot deserialize: %v\n", err)
