@@ -144,6 +144,17 @@ type JsonFormat struct {
 
 func (g JsonFormat) Encode(sketches map[string]sketch.Interface, file io.Writer) error {
 	fmt.Printf("JSON ENCODING\n")
+	for name, sk := range sketches {
+		switch gs := sk.(type) {
+		case *sketch.Sketch:
+			fmt.Printf("Encoding sketch %v %v\n", name, gs)
+		case *sketch.MultiSketch:
+			fmt.Printf("Encoding multisketch %v %v\n", name, gs)
+		case *sketch.GroupSketch:
+			fmt.Printf("Encoding group sketch %v %v\n", name, gs)
+		}
+	}
+
 	return nil
 }
 
