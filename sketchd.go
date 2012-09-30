@@ -99,8 +99,8 @@ func StopAutoRotation(sketches map[string]sketch.Interface) {
 	}
 }
 
-func ParseSketches(defs map[string]SketchDef) (sketches map[string]sketch.Interface) {
-	sketches = make(map[string]sketch.Interface)
+func ParseSketches(defs map[string]SketchDef) (sketches *sketch.GroupSketch) {
+	sketches = sketch.MakeGroupSketch("all", "", make(map[string]sketch.Interface))
 
 	for k, c := range defs {
 		var sk sketch.Interface
@@ -109,42 +109,50 @@ func ParseSketches(defs map[string]SketchDef) (sketches map[string]sketch.Interf
 		case "Multi":
 			sk = sketch.MakeMultiSketch(c.Length, c.Period, c.K, c.Depth, c.Width)
 		case "Group":
-			sk = sketch.MakeGroupSketch(c.Default, c.Parent, ParseSketches(c.Sketches))
+			sub := ParseSketches(c.Sketches)
+			sk = sketch.MakeGroupSketch(c.Default, c.Parent, sub.Sketches)
 		default:
 			sk = sketch.MakeSketch(c.K, c.Depth, c.Width)
 		}
-		sketches[k] = sk
+		sketches.Sketches[k] = sk
 	}
 
 	return
 }
 
 type FileFormat interface {
-	Encode(sketches map[string]sketch.Interface, file io.Writer) error
-	Decode(sketches *map[string]sketch.Interface, file io.Reader) error
+	Encode(sketches *sketch.GroupSketch, file io.Writer) error
+	Decode(sketches *sketch.GroupSketch, file io.Reader) error
 }
 
 type GobFormat struct {
 }
 
-func (g GobFormat) Encode(sketches map[string]sketch.Interface, file io.Writer) error {
+func (g GobFormat) Encode(sketches *sketch.GroupSketch, file io.Writer) error {
 	fmt.Printf("GOB ENCODING\n")
 	enc := gob.NewEncoder(file)
-	return enc.Encode(sketches)
+	return enc.Encode(sketches.Sketches)
 }
 
-func (g GobFormat) Decode(sketches *map[string]sketch.Interface, file io.Reader) error {
+func (g GobFormat) Decode(sketches *sketch.GroupSketch, file io.Reader) error {
 	fmt.Printf("GOB READING\n")
+
+	var sk map[string]sketch.Interface
 	dec := gob.NewDecoder(file)
-	return dec.Decode(&sketches)
+	err := dec.Decode(&sk)
+	if err == nil {
+		sketches.Sketches = sk
+	}
+
+	return err
 }
 
 type JsonFormat struct {
 }
 
-func (g JsonFormat) Encode(sketches map[string]sketch.Interface, file io.Writer) error {
+func (g JsonFormat) Encode(sketches *sketch.GroupSketch, file io.Writer) error {
 	fmt.Printf("JSON ENCODING\n")
-	for name, sk := range sketches {
+	for name, sk := range sketches.Sketches {
 		switch gs := sk.(type) {
 		case *sketch.Sketch:
 			fmt.Printf("Encoding sketch %v %v\n", name, gs)
@@ -158,7 +166,7 @@ func (g JsonFormat) Encode(sketches map[string]sketch.Interface, file io.Writer)
 	return nil
 }
 
-func (g JsonFormat) Decode(sketches *map[string]sketch.Interface, file io.Reader) error {
+func (g JsonFormat) Decode(sketches *sketch.GroupSketch, file io.Reader) error {
 	fmt.Printf("JSON READING\n")
 	return nil
 }
@@ -180,26 +188,28 @@ func main() {
 	gob.Register(sketch.MakeGroupSketch("", "", nil))
 	gob.Register(&sketch.Item{})
 
-	if conf.Preload {
-		fmt.Printf("Preloading\n")
-		for _, sk := range sketches {
-			Preload(sk)
+	/*
+		if conf.Preload {
+			fmt.Printf("Preloading\n")
+			for _, sk := range sketches {
+				Preload(sk)
+			}
 		}
-	}
+	*/
 
 	update := make(chan string, 2000)
 	go func() {
 		for t := range update {
-			for _, sk := range sketches {
+			for _, sk := range sketches.Sketches {
 				sk.Update(t)
 			}
 		}
 	}()
 
-	for name, sk := range sketches {
+	for name, sk := range sketches.Sketches {
 		var cname = name
 		http.HandleFunc("/top/"+name, func(w http.ResponseWriter, r *http.Request) {
-			js, _ := json.Marshal(sketches[cname].Top(5))
+			js, _ := json.Marshal(sketches.Sketches[cname].Top(5))
 			w.Write(js)
 		})
 
@@ -207,14 +217,14 @@ func main() {
 		case *sketch.MultiSketch:
 			var cname = name
 			http.HandleFunc("/top/"+name+"/rotate", func(w http.ResponseWriter, r *http.Request) {
-				sketches[cname].(*sketch.MultiSketch).Rotate()
+				sketches.Sketches[cname].(*sketch.MultiSketch).Rotate()
 			})
 		case *sketch.GroupSketch:
 			var cname = name
 			for child := range gs.Sketches {
 				fmt.Printf("child of group %v: %v\n", cname, child)
 				http.HandleFunc("/top/"+name+"/"+child, func(w http.ResponseWriter, r *http.Request) {
-					js, _ := json.Marshal(sketches[cname].(*sketch.GroupSketch).Sketches[child].Top(5))
+					js, _ := json.Marshal(sketches.Sketches[cname].(*sketch.GroupSketch).Sketches[child].Top(5))
 					w.Write(js)
 				})
 			}
@@ -268,8 +278,8 @@ func main() {
 	}
 
 	parse := func(w io.Writer, format FileFormat) {
-		StopAutoRotation(sketches)
-		defer StartAutoRotation(sketches)
+		StopAutoRotation(sketches.Sketches)
+		defer StartAutoRotation(sketches.Sketches)
 
 		rfile, err := os.Open(conf.File)
 
@@ -290,7 +300,7 @@ func main() {
 		}
 		defer rfile.Close()
 
-		err = format.Decode(&sketches, file)
+		err = format.Decode(sketches, file)
 
 		if err != nil {
 			fmt.Fprintf(w, "Cannot deserialize: %v\n", err)
@@ -313,7 +323,7 @@ func main() {
 		}
 	}
 
-	StartAutoRotation(sketches)
+	StartAutoRotation(sketches.Sketches)
 
 	if conf.Autosave > 0 {
 		go func() {
