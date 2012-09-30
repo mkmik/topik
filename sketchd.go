@@ -258,10 +258,10 @@ func main() {
 	formats["gob"] = &GobFormat{}
 	formats["json"] = &JsonFormat{}
 
-	save := func(w io.Writer, format FileFormat) {
+	save := func(fileName string, w io.Writer, format FileFormat) {
 		fmt.Fprintf(w, "saving\n")
 
-		dumpDir := filepath.Dir(conf.File)
+		dumpDir := filepath.Dir(fileName)
 		wfile, err := ioutil.TempFile(dumpDir, "topk-")
 
 		if err != nil {
@@ -286,11 +286,11 @@ func main() {
 			return
 		}
 
-		os.Rename(wfile.Name(), conf.File)
+		os.Rename(wfile.Name(), fileName)
 	}
 
 	dump := func(w io.Writer) {
-		save(w, formats[conf.Format])
+		save(conf.File, w, formats[conf.Format])
 	}
 
 	parse := func(w io.Writer, format FileFormat) {
@@ -330,6 +330,11 @@ func main() {
 
 	http.HandleFunc("/dump", func(w http.ResponseWriter, r *http.Request) {
 		dump(w)
+		fmt.Fprintf(w, "ok\n")
+	})
+
+	http.HandleFunc("/dump.json", func(w http.ResponseWriter, r *http.Request) {
+		save(conf.File+".json", w, formats["json"])
 		fmt.Fprintf(w, "ok\n")
 	})
 
