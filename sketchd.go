@@ -240,11 +240,6 @@ func main() {
 		fmt.Fprintf(w, "ok\n")
 	})
 
-	http.HandleFunc("/load", func(w http.ResponseWriter, r *http.Request) {
-		load(w)
-		fmt.Fprintf(w, "ok\n")
-	})
-
 	if !conf.Preload {
 		load(os.Stderr)
 	}
