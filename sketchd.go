@@ -71,6 +71,7 @@ type Configuration struct {
 	File     string
 	Preload  bool
 	Autosave time.Duration
+	Format   string
 	Sketches map[string]SketchDef
 }
 
@@ -116,6 +117,39 @@ func ParseSketches(defs map[string]SketchDef) (sketches map[string]sketch.Interf
 	}
 
 	return
+}
+
+type FileFormat interface {
+	Encode(sketches map[string]sketch.Interface, file io.Writer) error
+	Decode(sketches *map[string]sketch.Interface, file io.Reader) error
+}
+
+type GobFormat struct {
+}
+
+func (g GobFormat) Encode(sketches map[string]sketch.Interface, file io.Writer) error {
+	fmt.Printf("GOB ENCODING\n")
+	enc := gob.NewEncoder(file)
+	return enc.Encode(sketches)
+}
+
+func (g GobFormat) Decode(sketches *map[string]sketch.Interface, file io.Reader) error {
+	fmt.Printf("GOB READING\n")
+	dec := gob.NewDecoder(file)
+	return dec.Decode(&sketches)
+}
+
+type JsonFormat struct {
+}
+
+func (g JsonFormat) Encode(sketches map[string]sketch.Interface, file io.Writer) error {
+	fmt.Printf("JSON ENCODING\n")
+	return nil
+}
+
+func (g JsonFormat) Decode(sketches *map[string]sketch.Interface, file io.Reader) error {
+	fmt.Printf("JSON READING\n")
+	return nil
 }
 
 func main() {
@@ -183,16 +217,11 @@ func main() {
 		}
 	})
 
-	gobSerialize := func(file io.Writer) error {
-		enc := gob.NewEncoder(file)
-		return enc.Encode(sketches)
-	}
+	formats := make(map[string]FileFormat)
+	formats["gob"] = &GobFormat{}
+	formats["json"] = &JsonFormat{}
 
-	jsonSerialize := func(file io.Writer) error {
-		return nil
-	}
-
-	save := func(w io.Writer, serialize func (io.Writer) error) {
+	save := func(w io.Writer, format FileFormat) {
 		fmt.Fprintf(w, "saving\n")
 
 		dumpDir := filepath.Dir(conf.File)
@@ -207,14 +236,14 @@ func main() {
 			os.Remove(wfile.Name())
 		}()
 
-    file, err := gzip.NewWriterLevel(wfile, gzip.BestCompression)
-    if err != nil {
-      fmt.Fprintf(w, "Cannot open compressed stream: %v\n", err)
-      return
-    }
-    defer file.Close()
+		file, err := gzip.NewWriterLevel(wfile, gzip.BestCompression)
+		if err != nil {
+			fmt.Fprintf(w, "Cannot open compressed stream: %v\n", err)
+			return
+		}
+		defer file.Close()
 
-		err = serialize(file)
+		err = format.Encode(sketches, file)
 		if err != nil {
 			fmt.Fprintf(w, "Cannot serialize: %v\n", err)
 			return
@@ -224,14 +253,10 @@ func main() {
 	}
 
 	dump := func(w io.Writer) {
-		if false {
-			save(w, gobSerialize)
-		} else {
-			save(w, jsonSerialize)
-		}
+		save(w, formats[conf.Format])
 	}
 
-	load := func(w io.Writer) {
+	parse := func(w io.Writer, format FileFormat) {
 		StopAutoRotation(sketches)
 		defer StartAutoRotation(sketches)
 
@@ -254,14 +279,16 @@ func main() {
 		}
 		defer rfile.Close()
 
-		enc := gob.NewDecoder(file)
+		err = format.Decode(&sketches, file)
 
-		err = enc.Decode(&sketches)
 		if err != nil {
 			fmt.Fprintf(w, "Cannot deserialize: %v\n", err)
 			return
 		}
+	}
 
+	load := func(w io.Writer) {
+		parse(w, formats[conf.Format])
 	}
 
 	http.HandleFunc("/dump", func(w http.ResponseWriter, r *http.Request) {
@@ -270,7 +297,7 @@ func main() {
 	})
 
 	if !conf.Preload {
-		if false {
+		if true {
 			load(os.Stderr)
 		}
 	}
