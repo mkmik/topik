@@ -244,14 +244,14 @@ func main() {
 
 		switch gs := sk.(type) {
 		case *sketch.MultiSketch:
-			http.Handle("/top/"+name+"/rotate", rotateHandler{gs})
+			http.Handle("/rotate/"+name, rotateHandler{gs})
 		case *sketch.GroupSketch:
 			for childName, child := range gs.Sketches {
 				fmt.Printf("child of group %v: %v\n", name, childName)
 				http.Handle("/top/"+name+"/"+childName, topHandler{child})
 
 				if msChild, ok := child.(*sketch.MultiSketch); ok {
-					http.Handle("/top/"+name+"/"+childName+"/rotate", rotateHandler{msChild})
+					http.Handle("/rotate/"+name+"/"+childName, rotateHandler{msChild})
 				}
 			}
 		}
