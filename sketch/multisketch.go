@@ -49,14 +49,20 @@ func (ms *MultiSketch) StartAutoRotation() {
 			ms.rotor = make(chan chan int)
 		}
 
-		select {
-		case <-time.After(time.Duration(ms.Period/ms.Len) * time.Second):
-			log.Printf("Rotating topk after %d seconds", ms.Period/ms.Len)
-			ms.Rotate()
-		case ans := <-ms.rotor:
-			log.Printf("Aborting topk rotation")
-			ans <- 0
-			return
+		t := time.NewTicker(time.Duration(ms.Period/ms.Len) * time.Second)
+		defer t.Stop()
+
+		for {
+			select {
+			case <-t.C:
+				log.Printf("Rotating topk after %d seconds", ms.Period/ms.Len)
+				ms.Rotate()
+				log.Printf("Finished rotating")
+			case ans := <-ms.rotor:
+				log.Printf("Aborting topk rotation")
+				ans <- 0
+				return
+			}
 		}
 	}()
 }
