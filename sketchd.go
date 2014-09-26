@@ -187,6 +187,15 @@ func (g JsonFormat) Decode(conf Configuration, sketches *sketch.GroupSketch, fil
 	return nil
 }
 
+type topHandler struct {
+	sketch.Interface
+}
+
+func (t topHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	js, _ := json.Marshal(t.Top(5))
+	w.Write(js)
+}
+
 func main() {
 	file, e := ioutil.ReadFile("./config.json")
 	if e != nil {
@@ -223,11 +232,7 @@ func main() {
 	}()
 
 	for name, sk := range sketches.Sketches {
-		var cname = name
-		http.HandleFunc("/top/"+name, func(w http.ResponseWriter, r *http.Request) {
-			js, _ := json.Marshal(sketches.Sketches[cname].Top(5))
-			w.Write(js)
-		})
+		http.Handle("/top/"+name, topHandler{sk})
 
 		switch gs := sk.(type) {
 		case *sketch.MultiSketch:
@@ -237,11 +242,7 @@ func main() {
 		case *sketch.GroupSketch:
 			for childName, child := range gs.Sketches {
 				fmt.Printf("child of group %v: %v\n", name, childName)
-				var cchild = child
-				http.HandleFunc("/top/"+name+"/"+childName, func(w http.ResponseWriter, r *http.Request) {
-					js, _ := json.Marshal(cchild.Top(5))
-					w.Write(js)
-				})
+				http.Handle("/top/"+name+"/"+childName, topHandler{child})
 			}
 		}
 	}
