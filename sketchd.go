@@ -13,7 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-	"topk/sketch"
+	"topik/sketch"
 )
 
 var encodingError = errors.New("Encoding error")
