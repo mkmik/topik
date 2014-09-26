@@ -196,6 +196,14 @@ func (t topHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(js)
 }
 
+type rotateHandler struct {
+	*sketch.MultiSketch
+}
+
+func (s rotateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.Rotate()
+}
+
 func main() {
 	file, e := ioutil.ReadFile("./config.json")
 	if e != nil {
@@ -236,13 +244,15 @@ func main() {
 
 		switch gs := sk.(type) {
 		case *sketch.MultiSketch:
-			http.HandleFunc("/top/"+name+"/rotate", func(w http.ResponseWriter, r *http.Request) {
-				gs.Rotate()
-			})
+			http.Handle("/top/"+name+"/rotate", rotateHandler{gs})
 		case *sketch.GroupSketch:
 			for childName, child := range gs.Sketches {
 				fmt.Printf("child of group %v: %v\n", name, childName)
 				http.Handle("/top/"+name+"/"+childName, topHandler{child})
+
+				if msChild, ok := child.(*sketch.MultiSketch); ok {
+					http.Handle("/top/"+name+"/"+childName+"/rotate", rotateHandler{msChild})
+				}
 			}
 		}
 	}
