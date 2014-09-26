@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -100,7 +101,9 @@ func StopAutoRotation(sketches map[string]sketch.Interface) {
 }
 
 func ParseSketches(defs map[string]SketchDef) (sketches *sketch.GroupSketch) {
-	sketches = sketch.MakeGroupSketch("all", "", make(map[string]sketch.Interface))
+	sketches = sketch.MakeGroupSketch("all", make(map[string]sketch.Interface))
+
+	groupParents := map[*sketch.GroupSketch]string{}
 
 	for k, c := range defs {
 		var sk sketch.Interface
@@ -110,11 +113,22 @@ func ParseSketches(defs map[string]SketchDef) (sketches *sketch.GroupSketch) {
 			sk = sketch.MakeMultiSketch(c.Length, c.Period, c.K, c.Depth, c.Width)
 		case "Group":
 			sub := ParseSketches(c.Sketches)
-			sk = sketch.MakeGroupSketch(c.Default, c.Parent, sub.Sketches)
+
+			gs := sketch.MakeGroupSketch(c.Default, sub.Sketches)
+			groupParents[gs] = c.Parent
+			sk = gs
 		default:
 			sk = sketch.MakeSketch(c.K, c.Depth, c.Width)
 		}
 		sketches.Sketches[k] = sk
+	}
+
+	for g, p := range groupParents {
+		parent, ok := sketches.Sketches[p]
+		if !ok && p != "" {
+			log.Fatalf("Invalid parent %q for sketch", p)
+		}
+		g.Parent = parent
 	}
 
 	return
@@ -204,6 +218,17 @@ func (s rotateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.Rotate()
 }
 
+type addHandler struct {
+	sketch.Interface
+}
+
+func (s addHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	terms := r.URL.Query()["term"]
+	for _, t := range terms {
+		s.Update(t)
+	}
+}
+
 func main() {
 	file, e := ioutil.ReadFile("./config.json")
 	if e != nil {
@@ -218,7 +243,7 @@ func main() {
 
 	gob.Register(sketch.MakeSketch(1, 1, 1))
 	gob.Register(sketch.MakeMultiSketch(1, 0, 1, 1, 1))
-	gob.Register(sketch.MakeGroupSketch("", "", nil))
+	gob.Register(sketch.MakeGroupSketch("", nil))
 	gob.Register(&sketch.Item{})
 
 	/*
@@ -230,17 +255,9 @@ func main() {
 		}
 	*/
 
-	update := make(chan string, 2000)
-	go func() {
-		for t := range update {
-			for _, sk := range sketches.Sketches {
-				sk.Update(t)
-			}
-		}
-	}()
-
 	for name, sk := range sketches.Sketches {
 		http.Handle("/top/"+name, topHandler{sk})
+		http.Handle("/add/"+name, addHandler{sk})
 
 		switch gs := sk.(type) {
 		case *sketch.MultiSketch:
@@ -256,13 +273,6 @@ func main() {
 			}
 		}
 	}
-
-	http.HandleFunc("/add", func(w http.ResponseWriter, r *http.Request) {
-		terms := r.URL.Query()["term"]
-		for _, t := range terms {
-			update <- t
-		}
-	})
 
 	formats := make(map[string]FileFormat)
 	formats["gob"] = &GobFormat{}
