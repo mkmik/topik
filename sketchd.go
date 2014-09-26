@@ -231,17 +231,15 @@ func main() {
 
 		switch gs := sk.(type) {
 		case *sketch.MultiSketch:
-			var cname = name
 			http.HandleFunc("/top/"+name+"/rotate", func(w http.ResponseWriter, r *http.Request) {
-				sketches.Sketches[cname].(*sketch.MultiSketch).Rotate()
+				gs.Rotate()
 			})
 		case *sketch.GroupSketch:
-			var cname = name
-			for child := range gs.Sketches {
-				fmt.Printf("child of group %v: %v\n", cname, child)
+			for childName, child := range gs.Sketches {
+				fmt.Printf("child of group %v: %v\n", name, childName)
 				var cchild = child
-				http.HandleFunc("/top/"+name+"/"+child, func(w http.ResponseWriter, r *http.Request) {
-					js, _ := json.Marshal(sketches.Sketches[cname].(*sketch.GroupSketch).Sketches[cchild].Top(5))
+				http.HandleFunc("/top/"+name+"/"+childName, func(w http.ResponseWriter, r *http.Request) {
+					js, _ := json.Marshal(cchild.Top(5))
 					w.Write(js)
 				})
 			}
