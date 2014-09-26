@@ -239,8 +239,9 @@ func main() {
 			var cname = name
 			for child := range gs.Sketches {
 				fmt.Printf("child of group %v: %v\n", cname, child)
+				var cchild = child
 				http.HandleFunc("/top/"+name+"/"+child, func(w http.ResponseWriter, r *http.Request) {
-					js, _ := json.Marshal(sketches.Sketches[cname].(*sketch.GroupSketch).Sketches[child].Top(5))
+					js, _ := json.Marshal(sketches.Sketches[cname].(*sketch.GroupSketch).Sketches[cchild].Top(5))
 					w.Write(js)
 				})
 			}
