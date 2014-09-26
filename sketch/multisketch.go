@@ -1,11 +1,9 @@
 package sketch
 
 import (
-	"log/syslog"
+	"log"
 	"time"
 )
-
-var log, _ = syslog.NewLogger(syslog.LOG_INFO, 0)
 
 type MultiSketch struct {
 	Len      int
