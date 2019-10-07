@@ -14,7 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-	"topik/sketch"
+	"github.com/mkmik/topik/sketch"
 )
 
 var encodingError = errors.New("Encoding error")

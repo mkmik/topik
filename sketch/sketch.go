@@ -6,7 +6,7 @@ import (
 	"math"
 	"math/rand"
 	"sort"
-	"topik/pqueue"
+	"github.com/mkmik/topik/pqueue"
 )
 
 const IntSize = 64
